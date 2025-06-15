@@ -26,6 +26,7 @@ const int PIN_PUERTA = A0;
 
 void setup() {
 	Serial.begin(9600);
+	Serial.println();
 	lcd.init();
 	lcd.begin(lcdCols, lcdRows, LCD_5x8DOTS);
 	lcd.backlight();
@@ -35,9 +36,18 @@ void setup() {
 	pinMode(PIN_LUZ		, OUTPUT);
 	pinMode(PIN_PIEZO	, OUTPUT); noTone(PIN_PIEZO);
 	pinMode(PIN_PUERTA	, INPUT);
+	
+	digitalWrite(PIN_LUZ, HIGH);
+	
+	Serial.println("Hola mundo!");
 }
 void loop() {
-	delay(50);
+	delay(500);
+	digitalWrite(PIN_MOTOR, 1);
+	tone(PIN_PIEZO, 500);
 	
+	delay(500);
+	digitalWrite(PIN_MOTOR, 0);
+	noTone(PIN_PIEZO);
 	// TODO
 }
