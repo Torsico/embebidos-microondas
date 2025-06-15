@@ -8,8 +8,8 @@ char kpLabels[4][4] = {
 	'7','8','9','C',
 	'*','0','#','D'
 };
-byte kpPinsRow[4] = {9,8,7,6};
-byte kpPinsCol[4] = {5,4,3,2};
+byte kpPinsRow[4] = {12,11,10,9};
+byte kpPinsCol[4] = {8,7,6,5};
 Keypad kp = Keypad(makeKeymap(kpLabels), kpPinsRow, kpPinsCol, 4, 4);
 
 // -------LCD-------
@@ -17,9 +17,9 @@ const byte lcdRows = 2, lcdCols = 16;
 LiquidCrystal_I2C lcd(0x20, lcdCols, lcdRows);
 
 // DONDE estan los PINES
-const int PIN_PIEZO = 11;
-const int PIN_MOTOR = 10;
-const int PIN_LUZ = A1;
+const int PIN_PIEZO = 3;
+const int PIN_MOTOR = 4;
+const int PIN_LUZ = 2;
 const int PIN_PUERTA = A0;
 
 //##################
@@ -31,7 +31,10 @@ void setup() {
 	lcd.backlight();
 	lcd.cursor();
 	
-	// TODO
+	pinMode(PIN_MOTOR	, OUTPUT);
+	pinMode(PIN_LUZ		, OUTPUT);
+	pinMode(PIN_PIEZO	, OUTPUT); noTone(PIN_PIEZO);
+	pinMode(PIN_PUERTA	, INPUT);
 }
 void loop() {
 	delay(50);
