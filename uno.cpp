@@ -42,6 +42,8 @@ void setup() {
 	Serial.println("Hola mundo!");
 }
 void loop() {
+	Serial.println(analogRead(A0));
+	
 	delay(500);
 	digitalWrite(PIN_MOTOR, 1);
 	tone(PIN_PIEZO, 500);
