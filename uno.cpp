@@ -61,9 +61,10 @@ bool doorOpen = false; // esta la puerta abierta?
 
 enum stateEnum {
 	S_IDLE, // esperando que el usuario haga algo
-	S_COOKING, // cocinando (i.e. pasando el tiempo)
+	S_COOKING // cocinando (i.e. pasando el tiempo)
 };
 int curState = S_IDLE;
+int changedState = 1; // para reinicializar algunas cosas en cambio de estado
 
 // ----- Utilidad Microondas -----
 bool isNum(char ch) {
@@ -73,6 +74,7 @@ bool isNum(char ch) {
 
 void changeState(int to) {
 	curState = to;
+	changedState = 2;
 }
 
 //##################
@@ -96,7 +98,7 @@ void setup() {
 	Serial.println("Hola mundo!");
 }
 void loop() {
-	delay(20);
+	delay(50);
 	
 	long timeNow = millis();
 	long delta = timeNow - timeTotal;
@@ -106,17 +108,34 @@ void loop() {
 	bool anyKey = (key != NO_KEY);
 	bool numKey = (key >= 0x30 && key <= 0x39);
 	
-	if (anyKey) {
-		lcd.clear();
-		if (key == 'A') {
-			curState = S_COOKING;
-			lcd.print("morfi time");
+	if (curState == S_IDLE) {
+		if (changedState) {
+			lcd.clear();
+			lcd.print("S_IDLE");
 		}
-		if (key == '*') {
-			curState = S_IDLE;
-			lcd.print("espera time");
+		
+		if (anyKey) {
+			Serial.println("key");
+			if (key == 'A') {
+				changeState(S_COOKING);
+			}
 		}
 	}
 	
+	else if (curState == S_COOKING) {
+		if (changedState) {
+			lcd.clear();
+			lcd.print("S_COOKING");
+		}
+		
+		if (anyKey) {
+			Serial.println("key");
+			if (key == '*') {
+				changeState(S_IDLE);
+			}
+		}
+	}
+	
+	if (changedState) changedState--;
 	timeTotal = timeNow;
 }
