@@ -1,7 +1,7 @@
 #include <LiquidCrystal_I2C.h>
 #include <Keypad.h>
 
-// -------Keypad-------
+// ----- Keypad -----
 char kpLabels[4][4] = {
 	'1','2','3','A',
 	'4','5','6','B',
@@ -12,15 +12,28 @@ byte kpPinsRow[4] = {12,11,10,9};
 byte kpPinsCol[4] = {8,7,6,5};
 Keypad kp = Keypad(makeKeymap(kpLabels), kpPinsRow, kpPinsCol, 4, 4);
 
-// -------LCD-------
+// ----- LCD -----
 const byte lcdRows = 2, lcdCols = 16;
 LiquidCrystal_I2C lcd(0x20, lcdCols, lcdRows);
 
-// DONDE estan los PINES
+// ----- DONDE estan los PINES -----
 const int PIN_PIEZO = 3;
 const int PIN_MOTOR = 4;
 const int PIN_LIGHT = 2;
 const int PIN_DOOR = A0;
+
+// ----- Variables Microondas -----
+enum cookTimesEnum { CT_FAST, CT_UNFREEZE, CT_REHEAT, CT_USER };
+int cookTimes[4][3] = {
+	// tiempo calentado en segundos, tiempo apagado en segundos, repeticiones
+	{30,  0, 1}, // CT_FAST (coccion rapida)
+	{20, 10, 5}, // CT_UNFREEZE (descongelar)
+	{15,  3, 3}, // CT_REHEAT (recalentar)
+	{30,  0, 1}  // CT_USER (personalizado)
+};
+
+// ----- Utilidad Microondas -----
+
 
 //##################
 
@@ -37,7 +50,7 @@ void setup() {
 	pinMode(PIN_PIEZO	, OUTPUT); noTone(PIN_PIEZO);
 	pinMode(PIN_DOOR	, INPUT);
 	
-	digitalWrite(PIN_LIGHT, HIGH);
+	//digitalWrite(PIN_LIGHT, HIGH);
 	
 	Serial.println("Hola mundo!");
 }
