@@ -19,8 +19,8 @@ LiquidCrystal_I2C lcd(0x20, lcdCols, lcdRows);
 // DONDE estan los PINES
 const int PIN_PIEZO = 3;
 const int PIN_MOTOR = 4;
-const int PIN_LUZ = 2;
-const int PIN_PUERTA = A0;
+const int PIN_LIGHT = 2;
+const int PIN_DOOR = A0;
 
 //##################
 
@@ -33,11 +33,11 @@ void setup() {
 	lcd.cursor();
 	
 	pinMode(PIN_MOTOR	, OUTPUT);
-	pinMode(PIN_LUZ		, OUTPUT);
+	pinMode(PIN_LIGHT		, OUTPUT);
 	pinMode(PIN_PIEZO	, OUTPUT); noTone(PIN_PIEZO);
-	pinMode(PIN_PUERTA	, INPUT);
+	pinMode(PIN_DOOR	, INPUT);
 	
-	digitalWrite(PIN_LUZ, HIGH);
+	digitalWrite(PIN_LIGHT, HIGH);
 	
 	Serial.println("Hola mundo!");
 }
