@@ -43,18 +43,25 @@ byte chardef_clock[] = {
   B01110
 };
 
+const int clockX = 0, repsX = 0; // ubicacion de iconos
+
 // ----- Variables Microondas -----
 enum cookTimesEnum { CT_FAST, CT_UNFREEZE, CT_REHEAT, CT_USER };
+enum cookSegment { C_HOT, C_COLD, C_REPS };
 int cookTimes[4][3] = {
 	// tiempo calentado en segundos, tiempo apagado en segundos, repeticiones
 	{30,  0, 1}, // CT_FAST (coccion rapida)
 	{20, 10, 5}, // CT_UNFREEZE (descongelar)
 	{15,  3, 3}, // CT_REHEAT (recalentar)
+	// le puse CT_FAST como default
 	{30,  0, 1}  // CT_USER (personalizado)
 };
+int chosenProgram = 0; // el programa elegido
 
 long timeTotal = 0; // tiempo total desde que se inicio el programa
-long timeLeft = 0; // tiempo restante para la coccion
+
+long timeLeft = 0; // tiempo restante para este segmento de coccion
+long curSegment = C_HOT;
 int repsLeft = 0; // repeticiones restantes para la coccion
 
 bool doorOpen = false; // esta la puerta abierta?
@@ -64,12 +71,32 @@ enum stateEnum {
 	S_COOKING // cocinando (i.e. pasando el tiempo)
 };
 int curState = S_IDLE;
-int changedState = 1; // para reinicializar algunas cosas en cambio de estado
+int changedState = 1; // 2: _RECIEN_ cambiamos (para el x-- al final del loop), 1: cambiamos, 0: seguimos
 
 // ----- Utilidad Microondas -----
 bool isNum(char ch) {
 	// es el char entre ascii '0' y '9'?
 	return (ch >= 0x30 && ch <= 0x39);
+}
+
+long getProjectedTime() {
+	// calcula la cantidad de tiempo que llevara
+	// completar el programa, basado en lo que queda
+	// por completar, y lo devuelve.
+	
+	int* prog = cookTimes[chosenProgram];
+	
+	//long total = (prog[C_HOT] + prog[C_COLD]) * prog[C_REPS] * 1000
+	
+	long totalFutureReps = (prog[C_HOT] + prog[C_COLD]) * repsLeft * 1000;
+	long totalThisRep = (
+		curSegment == C_HOT ?
+			  timeLeft + prog[C_COLD] * 1000 // HOT + COLD
+			: timeLeft                       //   0 + COLD
+	);
+	long total = totalFutureReps + totalThisRep;
+	
+	return total;
 }
 
 void changeState(int to) {
@@ -117,6 +144,7 @@ void loop() {
 		if (anyKey) {
 			Serial.println("key");
 			if (key == 'A') {
+				chosenProgram = CT_FAST;
 				changeState(S_COOKING);
 			}
 		}
@@ -126,6 +154,13 @@ void loop() {
 		if (changedState) {
 			lcd.clear();
 			lcd.print("S_COOKING");
+			
+			timeLeft = cookTimes[chosenProgram][C_HOT] * 1000;
+			repsLeft = cookTimes[chosenProgram][C_REPS] - 1;
+			curSegment = C_HOT;
+			
+			lcd.setCursor(0,1);
+			lcd.print(getProjectedTime());
 		}
 		
 		if (anyKey) {
