@@ -16,11 +16,32 @@ Keypad kp = Keypad(makeKeymap(kpLabels), kpPinsRow, kpPinsCol, 4, 4);
 const byte lcdRows = 2, lcdCols = 16;
 LiquidCrystal_I2C lcd(0x20, lcdCols, lcdRows);
 
-// ----- DONDE estan los PINES -----
+// ----- Algunas constantes -----
 const int PIN_PIEZO = 3;
 const int PIN_MOTOR = 4;
 const int PIN_LIGHT = 2;
 const int PIN_DOOR = A0;
+
+byte chardef_loop[] = {
+  B00111,
+  B10110,
+  B10101,
+  B10001,
+  B10001,
+  B10101,
+  B01101,
+  B11100
+};
+byte chardef_clock[] = {
+  B01110,
+  B10101,
+  B10101,
+  B10111,
+  B10001,
+  B10001,
+  B10001,
+  B01110
+};
 
 // ----- Variables Microondas -----
 enum cookTimesEnum { CT_FAST, CT_UNFREEZE, CT_REHEAT, CT_USER };
@@ -32,8 +53,27 @@ int cookTimes[4][3] = {
 	{30,  0, 1}  // CT_USER (personalizado)
 };
 
-// ----- Utilidad Microondas -----
+long timeTotal = 0; // tiempo total desde que se inicio el programa
+long timeLeft = 0; // tiempo restante para la coccion
+int repsLeft = 0; // repeticiones restantes para la coccion
 
+bool doorOpen = false; // esta la puerta abierta?
+
+enum stateEnum {
+	S_IDLE, // esperando que el usuario haga algo
+	S_COOKING, // cocinando (i.e. pasando el tiempo)
+};
+int curState = S_IDLE;
+
+// ----- Utilidad Microondas -----
+bool isNum(char ch) {
+	// es el char entre ascii '0' y '9'?
+	return (ch >= 0x30 && ch <= 0x39);
+}
+
+void changeState(int to) {
+	curState = to;
+}
 
 //##################
 
@@ -42,27 +82,41 @@ void setup() {
 	Serial.println();
 	lcd.init();
 	lcd.begin(lcdCols, lcdRows, LCD_5x8DOTS);
+	lcd.createChar(0, chardef_loop);
+	lcd.createChar(1, chardef_clock);
 	lcd.backlight();
-	lcd.cursor();
 	
-	pinMode(PIN_MOTOR	, OUTPUT);
-	pinMode(PIN_LIGHT		, OUTPUT);
-	pinMode(PIN_PIEZO	, OUTPUT); noTone(PIN_PIEZO);
-	pinMode(PIN_DOOR	, INPUT);
+	pinMode(PIN_MOTOR, OUTPUT);
+	pinMode(PIN_LIGHT, OUTPUT);
+	pinMode(PIN_PIEZO, OUTPUT); noTone(PIN_PIEZO);
+	pinMode(PIN_DOOR ,  INPUT);
 	
 	//digitalWrite(PIN_LIGHT, HIGH);
 	
 	Serial.println("Hola mundo!");
 }
 void loop() {
-	Serial.println(analogRead(A0));
+	delay(20);
 	
-	delay(500);
-	digitalWrite(PIN_MOTOR, 1);
-	tone(PIN_PIEZO, 500);
+	long timeNow = millis();
+	long delta = timeNow - timeTotal;
+	doorOpen = (analogRead(A0) > 512);
 	
-	delay(500);
-	digitalWrite(PIN_MOTOR, 0);
-	noTone(PIN_PIEZO);
-	// TODO
+	char key = kp.getKey();
+	bool anyKey = (key != NO_KEY);
+	bool numKey = (key >= 0x30 && key <= 0x39);
+	
+	if (anyKey) {
+		lcd.clear();
+		if (key == 'A') {
+			curState = S_COOKING;
+			lcd.print("morfi time");
+		}
+		if (key == '*') {
+			curState = S_IDLE;
+			lcd.print("espera time");
+		}
+	}
+	
+	timeTotal = timeNow;
 }
