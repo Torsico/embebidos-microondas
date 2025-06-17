@@ -141,17 +141,7 @@ long getProjectedTime() {
 	return total;
 }
 
-void updateLCDWithTime() {
-	//for (int i = 0; i < 8; i++) {lcdTimeText[i] = '\0';}
-	lcd.setCursor(clockX+1, 0);
-	
-	//snprintf(lcdTimeText, 8, "%d:%d");
-	int charsWritten = snprintf(lcdTimeText, 7, "%d%n", timeLeft, charsWritten);
-	charsWritten = min(charsWritten, 7);
-	
-	lcd.print(lcdTimeText);
-	for (int i = charsWritten; i < 7; i++) {lcd.print("?");}
-}
+
 bool cookAdvance() {
 	pp("cookAdvance()");
 	// devuelve bool: "ya termino la coccion?"
@@ -172,17 +162,17 @@ bool cookAdvance() {
 	pp("cookAdvance: timeLeft = ", timeLeft);
 	return false;
 }
-void cookStep(long delta) {
-	pp("cookStep(", delta, ")");
-	// hace pasar el tiempo
-	timeLeft -= delta;
-	if (timeLeft <= 0 && curSegment != C_DONE) {
-		pp("cookStep: negativo!!");
-		// este segmento de cocina termino
-		cookAdvance();
-	}
+
+void updateCookingLCD() {
+	//for (int i = 0; i < 8; i++) {lcdTimeText[i] = '\0';}
+	lcd.setCursor(clockX+1, 0);
 	
-	updateLCDWithTime();
+	//snprintf(lcdTimeText, 8, "%d:%d");
+	int charsWritten = snprintf(lcdTimeText, 7, "%d%n", timeLeft, charsWritten);
+	charsWritten = min(charsWritten, 7);
+	
+	lcd.print(lcdTimeText);
+	for (int i = charsWritten; i < 7; i++) {lcd.print("?");}
 }
 
 void changeState(int to) {
@@ -255,19 +245,28 @@ void loop() {
 			lcd.setCursor(repsX, 0);
 			lcd.write(CHR_LOOP);
 			
-			updateLCDWithTime();
+			updateCookingLCD();
 			
 			//lcd.print(getProjectedTime());
 		}
-		
-		cookStep(delta);
-		delay(800);
 		
 		if (anyKey) {
 			if (key == '*') {
 				changeState(S_IDLE);
 			}
 		}
+		
+		pp("cook step delta ", delta);
+		// el tiempo pasa
+		timeLeft -= delta;
+		if (timeLeft <= 0 && curSegment != C_DONE) {
+			pp("cookStep: negativo!!");
+			// este segmento de cocina termino
+			cookAdvance();
+		}
+		
+		updateCookingLCD();
+		delay(800); // test
 	}
 	
 	if (changedState) changedState--;
