@@ -18,7 +18,7 @@ const byte lcdRows = 2, lcdCols = 16;
 LiquidCrystal_I2C lcd(0x20, lcdCols, lcdRows);
 
 // ----- debug -----
-#define DEBUGPRINT false
+#define DEBUGPRINT true
 #if DEBUGPRINT==true
 // truquitos print
 /* prints encadenados para que sea mas facil imprimir texto
@@ -117,11 +117,6 @@ char cookLabels[4][17] = {
 	"   Recalentar   ",
 	"    Usuario     "
 };
-char configLabels[3][17] = {
-	"INGRESE *calien.",
-	"INGRESE *apagado",
-	"INGRESE *repetir"
-};
 
 long timeTotal = 0; // tiempo total desde que se inicio el programa
 char txtBuffer[8];
@@ -140,6 +135,9 @@ long curSegment = C_HOT;
 int repsLeft = 0; // repeticiones restantes para la coccion
 
 int configPhase = 0; // en que fase de la configuracion estamos?
+bool configAdvance = false; // pasamos a la siguiente fase?
+bool configUpdate = false; // hay que actualizar la fase actual por alguna razon?
+int inputIndex = 0; // index en el cual insertamos caracteres, para txtBuffer
 
 bool verboseTime = false; // false: solo muestra el tiempo total restante. true: muestra mas info
 int updateDisplayPart = 0;
@@ -194,6 +192,15 @@ long getProjectedTime() {
 	return total;
 }
 
+int secondsToBuffer(int secsTotal) {
+	// toma segundos
+	// lo exporta en formato imprimible a txtBuffer
+	int secs = secsTotal % 60;
+	int mins = secsTotal / 60;
+	snprintf(txtBuffer, 6, "%02d:%02d", mins, secs);
+	
+	return mins;
+}
 void updateCookingLCD(int what = 0) {
 	updateDisplayPart |= what;
 	
@@ -255,7 +262,6 @@ void updateCookingLCD(int what = 0) {
 	if (updateDisplayPart & DP_BOTTOMROW) {
 		lcd.setCursor(0,1);
 		if (curSegment == C_DONE) {
-			
 			lcd.print("Coccion completa");
 		} else {
 			if (doorOpen) lcd.print("Cierre la puerta");
@@ -284,10 +290,6 @@ void setup() {
 	lcd.createChar(2, chardef_templow);
 	lcd.createChar(3, chardef_temphigh);
 	lcd.backlight();
-	
-	// ponemos los simbolos en los textos :)
-	configLabels[1][8] = configLabels[2][8] = (char)CHR_CLOCK;
-	configLabels[3][8] = (char)CHR_LOOP;
 	
 	pinMode(PIN_MOTOR, OUTPUT);
 	pinMode(PIN_LIGHT, OUTPUT);
@@ -320,6 +322,8 @@ void loop() {
 	// TODOS los estados pasan por S_IDLE en algun momento, nunca de uno al otro.
 	// por ende, usar S_IDLE como limpieza de pines y variables.
 	
+	if (changedState) ppln("cambio de estado");
+	
 	if (curState == S_IDLE) {
 		if (changedState) {
 			lcd.clear();
@@ -345,39 +349,128 @@ void loop() {
 	}
 	
 	else if (curState == S_CONFIG) {
-		/* TODO todo xd
-		hacer una secuencia de menu donde se pide, en orden,
-		- tiempo de calentamiento en segundos
-		- tiempo de apagado en segundos
-		- repeticiones
-		
-		//1234567890123456|
-		//INGRESE *calente
-		//INGRESE *apagado
-		//INGRESE *repetir
-		// *00:00_
-		
-		//OK?  Apriete '#'
-		//*00:00 *00:00 *x
-		
-		
-		talvez mostrar un "LISTO :)" y volver a S_IDLE
-		*/
-		
 		if (changedState) {
 			lcd.clear();
-			lcd.print(configLabels[1]);
-			lcd.setCursor(1,1);
-			lcd.print((char)CHR_CLOCK);
-			lcd.print("00:00");
-			lcd.cursor(); // TODO solo mostrarlo cuando se pide input
+			lcd.noCursor();
+			
+			configPhase = -1; // jeje
+			configAdvance = true;
+			timeLeft = 3000; // ;)
+		}
+		
+		if (configPhase >= 4) {
+			timeLeft -= delta;
+			if (timeLeft <= 0) changeState(S_IDLE);
+		}
+		
+		if (configAdvance) {
+			configAdvance = false;
+			inputIndex = 0;
+			lcd.noCursor();
+			
+			// si estamos avanzando, es por que terminamos con lo anterior
+			// guardemos lo ingresado
+			if (configPhase >= 0 && configPhase <= 2) {
+				int data = (int)strtol(txtBuffer, NULL, 10); // dicen en interné que atoi es medio raro
+				for (int i = 0; i <= 7; i++) pp((int)txtBuffer[i], ","); ppln(" | ",data);  // debug
+				cookTimes[CT_CFGMEM][configPhase] = data;
+			}
+			
+			for (int i = 0; i <= 7; i++) txtBuffer[i] = '\0'; // limpiar para que no quede nada raro
+			configPhase++;
+			
+			/*
+			0: segundos calentamiento
+			1: segundos apagado
+			2: repeticiones
+			3: confirmar?
+			4: OK!
+			*/
+			
+			if (configPhase <= 2) {
+				lcd.clear();
+				//Ingrese segundos
+				//Calentado *#####
+				//Apagado   *#####
+				//Repetir   *##
+				
+				lcd.print("Ingrese ");
+				if (configPhase == 2)
+					 lcd.print("cantidad");
+				else lcd.print("segundos");
+				
+				lcd.setCursor(0,1);
+				switch (configPhase) {
+					case 0: lcd.print("Calentado "); lcd.print((char)CHR_CLOCK); break;
+					case 1: lcd.print("Apagado   "); lcd.print((char)CHR_CLOCK); break;
+					case 2: lcd.print("Repetir   "); lcd.print((char)CHR_LOOP ); break;
+				}
+				
+				lcd.cursor();
+			} else {
+				if (configPhase == 3) {
+					lcd.clear();
+					lcd.setCursor(0,1);
+					
+					//lcd.print("*00:00 *00:00 *0");
+					
+					lcd.print((char)CHR_TEMPHIGH);
+					secondsToBuffer(cookTimes[CT_CFGMEM][C_HOT]);
+					lcd.print(txtBuffer);
+					lcd.print(' ');
+					
+					lcd.print((char)CHR_TEMPLOW);
+					secondsToBuffer(cookTimes[CT_CFGMEM][C_COLD]);
+					lcd.print(txtBuffer);
+					lcd.print(' ');
+					
+					lcd.print((char)CHR_LOOP);
+					int reps = cookTimes[CT_CFGMEM][C_REPS];
+					char represent = (char)('0'+reps);
+					lcd.print(reps > 9 ? '+' : represent);
+				}
+				
+				lcd.setCursor(0,0);
+				
+				if (configPhase == 3) {
+					lcd.print("OK?    Apriete #");
+					lcd.setCursor(15,0);
+					lcd.cursor();
+				}
+				if (configPhase == 4) {
+					for (int i = 0; i <= 2; i++) cookTimes[CT_USER][i] = cookTimes[CT_CFGMEM][i];
+					int* prog = cookTimes[CT_USER];
+					ppln("Programa guardado: {", prog[C_HOT], ",", prog[C_COLD], ",", prog[C_REPS], "}");
+					
+					lcd.print("LISTO :)        ");
+				}
+			}
+		}
+		
+		if (configUpdate && configPhase <= 2) {
+			configUpdate = false;
+			int lastIndex = inputIndex - 1;
+			lcd.setCursor(11 + lastIndex, 1); // justo despues de simbolo
+			lcd.write(txtBuffer[lastIndex]);
 		}
 		
 		if (anyKey) {
+			if (isNum(key) && configPhase <= 2) {
+				txtBuffer[inputIndex] = key;
+				if (inputIndex < 3) inputIndex++; // no te pases
+				configUpdate = true;
+			}
 			if (key == '*') {
 				// #cancela2
 				changeState(S_IDLE);
 			}
+			if (key == '#') {
+				if (configPhase < 4) configAdvance = true;
+				else changeState(S_IDLE);
+			}
+			// tenia pensado poner un boton estilo backspace para debugear mas facil
+			// pero pense "che, mi microondas no hace eso :("
+			// asi que mejor no JAJAJAJAJ
 		}
 	}
 	
