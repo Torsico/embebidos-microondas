@@ -272,6 +272,7 @@ void changeState(int to) {
 void setup() {
 	Serial.begin(9600);
 	Serial.println();
+	Serial.println("-- reset --");
 	lcd.init();
 	lcd.begin(lcdCols, lcdRows, LCD_5x8DOTS);
 	lcd.createChar(0, chardef_loop);
