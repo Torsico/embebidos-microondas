@@ -462,6 +462,7 @@ void loop() {
 								//pp("!!! C_DONE !!!");
 								curSegment = C_DONE;
 								timeLeft = 1000; // caso excepcional
+								updateDisplayPart |= DP_BOTTOMROW;
 							}
 						}
 						
