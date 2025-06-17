@@ -151,17 +151,22 @@ long getProjectedTime() {
 	// completar el programa, basado en lo que queda
 	// por completar, y lo devuelve.
 	
+	if (curSegment == C_DONE) return 0; // ya terminamos, no hay mas que esperar!
+	
 	int* prog = cookTimes[chosenProgram];
 	
 	//long total = (prog[C_HOT] + prog[C_COLD]) * prog[C_REPS] * 1000
 	
-	long totalFutureReps = (prog[C_HOT] + prog[C_COLD]) * repsLeft * 1000;
+	long totalFutureReps = (prog[C_HOT] + prog[C_COLD]) * repsLeft * 1000l;
 	long totalThisRep = (
 		curSegment == C_HOT ?
-			  timeLeft + prog[C_COLD] * 1000 // HOT + COLD
+			  timeLeft + prog[C_COLD] * 1000l // HOT + COLD
 			: timeLeft                       //   0 + COLD
 	);
 	long total = totalFutureReps + totalThisRep;
+	
+	ppln("pjTime:",total, " <= ([",prog[C_HOT]*1000, "h + ", prog[C_COLD]*1000, "c]*", repsLeft, ") + (",totalThisRep,")");
+	ppln("      :",totalFutureReps," + ",totalThisRep);
 	
 	return total;
 }
