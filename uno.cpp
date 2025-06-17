@@ -119,12 +119,14 @@ int repsLeft = 0; // repeticiones restantes para la coccion
 
 //long updateLast = 0; // cuando se actualizo por ultima vez el LCD?
 
+bool doorOpenPrev = false; // estaba la puerta abierta?
 bool doorOpen = false; // esta la puerta abierta?
 
 enum stateEnum {
 	S_IDLE,   // esperando que el usuario haga algo
 	S_CONFIG, // configurando CT_USER
-	S_COOKING // cocinando (i.e. pasando el tiempo)
+	S_COOKING, // cocinando (i.e. pasando el tiempo)
+	S_COOKINGWAIT // esperando que el usuario cierre la puerta antes de comenzar
 };
 int curState = S_IDLE;
 int changedState = 1; // 2: _RECIEN_ cambiamos (para el x-- al final del loop), 1: cambiamos, 0: seguimos
@@ -219,6 +221,7 @@ void loop() {
 	
 	long timeNow = millis();
 	long delta = timeNow - timeTotal;
+	doorOpenPrev = doorOpen;
 	doorOpen = (analogRead(A0) > 512);
 	
 	char key = kp.getKey();
@@ -249,7 +252,7 @@ void loop() {
 		if (anyKey) {
 			if (key >= 'A' && key <= 'D') {
 				chosenProgram = CT_FAST + (key - 'A');
-				changeState(S_COOKING);
+				changeState(doorOpen ? S_COOKINGWAIT : S_COOKING);
 			}
 			if (key == '#') {
 				changeState(S_CONFIG);
@@ -281,6 +284,24 @@ void loop() {
 		}
 	}
 	
+	else if (curState == S_COOKINGWAIT) {
+		// estado especial: queremos cocinar,
+		// pero el usuario dejo la puerta abierta
+		if (changedState) {
+			lcd.clear();
+			lcd.print("Cierre la puerta");
+			lcd.setCursor(0,1);
+			lcd.print("para comenzar...");
+		}
+		
+		if (!doorOpen) changeState(S_COOKING);
+		
+		if (anyKey) {
+			if (key == '*') {
+				changeState(S_IDLE);
+			}
+		}
+	}
 	else if (curState == S_COOKING) {
 		if (changedState) {
 			timeLeft = cookTimes[chosenProgram][C_HOT] * 1000;
@@ -330,7 +351,23 @@ void loop() {
 		// el tiempo pasa
 		bool shouldUpdateDisplay = false;
 		
-		if (curSegment != C_DONE) {
+		if (doorOpen) {
+			if (!doorOpenPrev) {
+				// mostrar advertencia al usuario antes de que las microondas lo destruyan
+				noTone(PIN_PIEZO);
+				digitalWrite(PIN_MOTOR, 0);
+				
+				lcd.setCursor(0,1);
+				lcd.print("Cierre la puerta");
+			}
+		}
+		
+		if (!doorOpen && doorOpenPrev) {
+			lcd.setCursor(0,1);
+			lcd.print("                ");
+		}
+		
+		if (curSegment != C_DONE && !doorOpen) {
 			int secsBefore = timeLeft / 1000;
 			timeLeft -= delta;
 			ppln("delta ", delta, "ms => tl:", timeLeft, "ms)");
@@ -366,12 +403,12 @@ void loop() {
 				
 				ppln(" | nuevo timeLeft = ", timeLeft);
 			}
-		}
-		
-		switch (curSegment) {
-			case C_HOT :   tone(PIN_PIEZO,  70); digitalWrite(PIN_MOTOR, 1); break;
-			case C_COLD:   tone(PIN_PIEZO,  20); digitalWrite(PIN_MOTOR, 0); break;
-			case C_DONE: noTone(PIN_PIEZO)     ; digitalWrite(PIN_MOTOR, 0); break;
+			
+			switch (curSegment) {
+				case C_HOT :   tone(PIN_PIEZO,  70); digitalWrite(PIN_MOTOR, 1); break;
+				case C_COLD:   tone(PIN_PIEZO,  20); digitalWrite(PIN_MOTOR, 0); break;
+				case C_DONE: noTone(PIN_PIEZO)     ; digitalWrite(PIN_MOTOR, 0); break;
+			}
 		}
 		
 		if (shouldUpdateDisplay) updateCookingLCD();
