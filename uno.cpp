@@ -18,7 +18,7 @@ const byte lcdRows = 2, lcdCols = 16;
 LiquidCrystal_I2C lcd(0x20, lcdCols, lcdRows);
 
 // ----- debug -----
-#define DEBUGPRINT true
+#define DEBUGPRINT false
 #if DEBUGPRINT==true
 // truquitos print
 /* prints encadenados para que sea mas facil imprimir texto
