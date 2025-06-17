@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <LiquidCrystal_I2C.h>
 #include <Keypad.h>
 
@@ -99,15 +100,16 @@ const int // ubicacion de iconos
 //0 2       10
 
 // ----- Variables Microondas -----
-enum cookTimesEnum { CT_FAST, CT_UNFREEZE, CT_REHEAT, CT_USER };
+enum cookTimesEnum { CT_FAST, CT_UNFREEZE, CT_REHEAT, CT_USER, CT_CFGMEM };
 enum cookSegment { C_HOT, C_COLD, C_REPS, C_DONE = 2 };
-int cookTimes[4][3] = {
+int cookTimes[5][3] = {
 	// tiempo calentado en segundos, tiempo apagado en segundos, repeticiones
 	{30,  0, 1}, // CT_FAST (coccion rapida)
 	{20, 10, 5}, // CT_UNFREEZE (descongelar)
 	{15,  3, 3}, // CT_REHEAT (recalentar)
 	// testeo por defecto
-	{ 3,  3, 3}  // CT_USER (personalizado)
+	{ 3,  3, 3}, // CT_USER (personalizado)
+	{ 0,  0, 0}, // CT_CFGMEM (no es un programa valido: esto es para S_CONFIG)
 };
 char cookLabels[4][17] = {
 	" Coccion rapida ",
@@ -121,17 +123,23 @@ char configLabels[3][17] = {
 	"INGRESE *repetir"
 };
 
-int configPhase = 0; // en que fase de la configuracion estamos?
+long timeTotal = 0; // tiempo total desde que se inicio el programa
+char txtBuffer[8];
+enum stateEnum {
+	S_IDLE,   // esperando que el usuario haga algo
+	S_CONFIG, // configurando CT_USER
+	S_COOKING, // cocinando (i.e. pasando el tiempo)
+	S_COOKINGWAIT // esperando que el usuario cierre la puerta antes de comenzar
+};
+int curState = S_IDLE;
+int changedState = 1; // 2: _RECIEN_ cambiamos (para el x-- al final del loop), 1: cambiamos, 0: seguimos
 
 int chosenProgram = 0; // el programa elegido
-
-long timeTotal = 0; // tiempo total desde que se inicio el programa
-
 long timeLeft = 0; // tiempo restante para este segmento de coccion
 long curSegment = C_HOT;
 int repsLeft = 0; // repeticiones restantes para la coccion
 
-char lcdBuffer[8];
+int configPhase = 0; // en que fase de la configuracion estamos?
 
 bool verboseTime = false; // false: solo muestra el tiempo total restante. true: muestra mas info
 int updateDisplayPart = 0;
@@ -152,19 +160,8 @@ enum displayParts { // para performance
 	DP_CLEAR = 1<<15,
 };
 
-//long updateLast = 0; // cuando se actualizo por ultima vez el LCD?
-
 bool doorOpenPrev = false; // estaba la puerta abierta?
 bool doorOpen = false; // esta la puerta abierta?
-
-enum stateEnum {
-	S_IDLE,   // esperando que el usuario haga algo
-	S_CONFIG, // configurando CT_USER
-	S_COOKING, // cocinando (i.e. pasando el tiempo)
-	S_COOKINGWAIT // esperando que el usuario cierre la puerta antes de comenzar
-};
-int curState = S_IDLE;
-int changedState = 1; // 2: _RECIEN_ cambiamos (para el x-- al final del loop), 1: cambiamos, 0: seguimos
 
 // ----- Utilidad Microondas -----
 bool isNum(char ch) {
@@ -230,17 +227,17 @@ void updateCookingLCD(int what = 0) {
 		
 		int secs = timeLeftInSecs % 60;
 		int mins = timeLeftInSecs / 60;
-		charsWritten = snprintf(lcdBuffer, 6, "%02d:%02d", mins, secs);
+		charsWritten = snprintf(txtBuffer, 6, "%02d:%02d", mins, secs);
 		
-		lcd.print(lcdBuffer);
+		lcd.print(txtBuffer);
 		for (int i = charsWritten; i < 6; i++) lcd.print(" ");
 	}
 	
 	// reps
 	if (updateDisplayPart & DP_REPS && verboseTime) {
 		lcd.setCursor(repsX+1, 0);
-		charsWritten = snprintf(lcdBuffer, 2, "%d", repsLeft);
-		lcd.print(lcdBuffer);
+		charsWritten = snprintf(txtBuffer, 2, "%d", repsLeft);
+		lcd.print(txtBuffer);
 		for (int i = charsWritten; i < 2; i++) lcd.print(" ");
 	}
 	
