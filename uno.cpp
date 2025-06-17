@@ -130,6 +130,7 @@ int curState = S_IDLE;
 int changedState = 1; // 2: _RECIEN_ cambiamos (para el x-- al final del loop), 1: cambiamos, 0: seguimos
 
 int chosenProgram = 0; // el programa elegido
+int repOverride = -1; // S_IDLE puede iniciar CT_FAST a travez de los numeros... asi que aca estamos
 long timeLeft = 0; // tiempo restante para este segmento de coccion
 long curSegment = C_HOT;
 int repsLeft = 0; // repeticiones restantes para la coccion
@@ -343,6 +344,11 @@ void loop() {
 				chosenProgram = CT_FAST + (key - 'A');
 				changeState(doorOpen ? S_COOKINGWAIT : S_COOKING);
 			}
+			if (key >= '1' && key <= '9') {
+				chosenProgram = CT_FAST;
+				repOverride = (int)(key - '0'); // si (int)'1' es n, [n - n = 0]. (int)'0' es n-1, [n - (n-1) = 1]
+				changeState(doorOpen ? S_COOKINGWAIT : S_COOKING);
+			}
 			if (key == '#') {
 				changeState(S_CONFIG);
 			}
@@ -496,7 +502,8 @@ void loop() {
 	else if (curState == S_COOKING) {
 		if (changedState) {
 			timeLeft = cookTimes[chosenProgram][C_HOT] * 1000l;
-			repsLeft = cookTimes[chosenProgram][C_REPS];
+			repsLeft = repOverride >= 0 ? repOverride : cookTimes[chosenProgram][C_REPS];
+			repOverride = -1;
 			curSegment = C_HOT;
 			
 			//Serial.println(chosenProgram);
