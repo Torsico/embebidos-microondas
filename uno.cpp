@@ -89,7 +89,7 @@ byte chardef_temphigh[] = {
   B11111,
   B01110
 };
-enum customChars : byte {CHR_LOOP, CHR_CLOCK, CHR_TEMPLOW, CHR_TEMPHIGH};
+enum customChars : char {CHR_LOOP, CHR_CLOCK, CHR_TEMPLOW, CHR_TEMPHIGH};
 
 const int // ubicacion de iconos
 	tempX  = 0,
@@ -123,6 +123,25 @@ long timeTotal = 0; // tiempo total desde que se inicio el programa
 long timeLeft = 0; // tiempo restante para este segmento de coccion
 long curSegment = C_HOT;
 int repsLeft = 0; // repeticiones restantes para la coccion
+
+bool verboseTime = false; // false: solo muestra el tiempo total restante. true: muestra mas info
+int updateDisplayPart = 0;
+enum displayParts { // para performance
+	DP_TIME = 1<<0,
+	DP_REPS = 1<<1,
+	DP_TEMP = 1<<2,
+	DP_ICONS = 1<<3,
+	
+	DP_TOPROW_DYNAMIC = DP_TIME | DP_REPS | DP_TEMP,
+	DP_TOPROW_STATIC = DP_ICONS,
+	DP_TOPROW = DP_TOPROW_DYNAMIC | DP_TOPROW_STATIC,
+	
+	DP_BOTTOMROW = 1<<8,
+	
+	DP_ALL = DP_TOPROW | DP_BOTTOMROW,
+	
+	DP_CLEAR = 1<<15,
+};
 
 //long updateLast = 0; // cuando se actualizo por ultima vez el LCD?
 
@@ -171,39 +190,76 @@ long getProjectedTime() {
 	return total;
 }
 
-void updateCookingLCD() {
-	// TODO: esto no cumple la consigna del TP
-	// >> mostrar TIEMPO RESTANTE TOTAL <<
-	// dejar lo extra como un display debug o algo asi
+void updateCookingLCD(int what = 0) {
+	updateDisplayPart |= what;
 	
-	int charsWritten;
+	if (updateDisplayPart & DP_CLEAR) lcd.clear(); // SOLO si actualizamos todo, conviene limpiar el LCD...
+	if (updateDisplayPart & DP_ICONS) {
+		
+		lcd.setCursor(tempX, 0);
+		lcd.write(verboseTime ? CHR_TEMPHIGH : ' ');
+		updateDisplayPart ^= DP_TEMP; // acabamos de hacerlo
+		
+		lcd.setCursor(repsX, 0);
+		lcd.print(verboseTime ? (char)CHR_LOOP : (char)' ');
+		lcd.print("  "); // DP_ICONS esta presente si alternamos verbose, no?
+		// DP_REPS va a poner lo que corresponde, seguro
+		
+		lcd.setCursor(clockX, 0);
+		lcd.write(CHR_CLOCK);
+	}
+	
+	int charsWritten = 0;
+	
 	// tiempo restante
-	lcd.setCursor(clockX+1, 0);
-	int timeLeftInSecs = timeLeft / 1000;
-	int secs = timeLeftInSecs % 60;
-	int mins = timeLeftInSecs / 60;
-	charsWritten = snprintf(lcdBuffer, 7, "%02d:%02d", mins, secs);
-	lcd.print(lcdBuffer);
-	for (int i = charsWritten; i < 7; i++) lcd.print(" ");
+	if (updateDisplayPart & DP_TIME) {
+		lcd.setCursor(clockX+1, 0);
+		
+		int timeLeftInSecs = curSegment == C_DONE ? 0 : (
+			verboseTime ?
+				timeLeft / 1000 : // mostrar TODO
+				getProjectedTime() / 1000 // solo mostrar tiempo restante
+		);
+		
+		int secs = timeLeftInSecs % 60;
+		int mins = timeLeftInSecs / 60;
+		charsWritten = snprintf(lcdBuffer, 6, "%02d:%02d", mins, secs);
+		
+		lcd.print(lcdBuffer);
+		for (int i = charsWritten; i < 6; i++) lcd.print(" ");
+	}
 	
 	// reps
-	lcd.setCursor(repsX+1, 0);
-	charsWritten = snprintf(lcdBuffer, 2, "%d", repsLeft);
-	lcd.print(lcdBuffer);
-	for (int i = charsWritten; i < 2; i++) lcd.print(" ");
+	if (updateDisplayPart & DP_REPS && verboseTime) {
+		lcd.setCursor(repsX+1, 0);
+		charsWritten = snprintf(lcdBuffer, 2, "%d", repsLeft);
+		lcd.print(lcdBuffer);
+		for (int i = charsWritten; i < 2; i++) lcd.print(" ");
+	}
 	
 	// segmento - temperatura, fase, como se llame xd
-	lcd.setCursor(tempX, 0);
-	switch (curSegment) {
-		case C_HOT : lcd.write(CHR_TEMPHIGH); break;
-		case C_COLD: lcd.write(CHR_TEMPLOW ); break;
-		case C_DONE: lcd.write('!'); break; // TODO
+	if (updateDisplayPart & DP_TEMP && verboseTime) {
+		lcd.setCursor(tempX, 0);
+		switch (curSegment) {
+			case C_HOT : lcd.write(CHR_TEMPHIGH); break;
+			case C_COLD: lcd.write(CHR_TEMPLOW ); break;
+			case C_DONE: lcd.write('!'); break; // TODO
+		}
 	}
 	
-	if (curSegment == C_DONE) {
+	// el display de estado ese
+	if (updateDisplayPart & DP_BOTTOMROW) {
 		lcd.setCursor(0,1);
-		lcd.print("Coccion completa");
+		if (curSegment == C_DONE) {
+			
+			lcd.print("Coccion completa");
+		} else {
+			if (doorOpen) lcd.print("Cierre la puerta");
+			else lcd.print(cookLabels[chosenProgram]);
+		}
 	}
+	
+	updateDisplayPart = 0;
 }
 
 void changeState(int to) {
@@ -323,21 +379,8 @@ void loop() {
 			repsLeft = cookTimes[chosenProgram][C_REPS] - 1; // la primera instancia ES una de las repeticiones!
 			curSegment = C_HOT;
 			
-			// dibujar el display como queremos
-			lcd.clear();
-			
-			lcd.setCursor(tempX, 0);
-			lcd.write(CHR_TEMPHIGH);
-			lcd.setCursor(clockX, 0);
-			lcd.write(CHR_CLOCK);
-			lcd.setCursor(repsX, 0);
-			lcd.write(CHR_LOOP);
-			
-			lcd.setCursor(0, 1);
-			Serial.println(chosenProgram);
-			lcd.print(cookLabels[chosenProgram]);
-			
-			// TODO: mostrar programa actual
+			//Serial.println(chosenProgram);
+			updateCookingLCD(DP_ALL|DP_CLEAR); // conviene hacerlo ahora
 		}
 		
 		if (anyKey) {
@@ -358,75 +401,91 @@ void loop() {
 				jeje
 				*/
 			}
+			if (key == '#') {
+				verboseTime = !verboseTime;
+				updateDisplayPart |= DP_TOPROW; // limpiar los iconos tambien
+			}
 		}
 		
-		ppln("# COCINA step tl:",timeLeft);
-		
+		//ppln("# COCINA step tl:",timeLeft); // SPAM
 		// el tiempo pasa
-		bool shouldUpdateDisplay = false;
+		if (curSegment == C_DONE) {
+			long tlPrev = timeLeft;
+			timeLeft -= delta;
+			
+			if (timeLeft > 0) {
+				tone(PIN_PIEZO, 400);
+			} else noTone(PIN_PIEZO);
+			
+			if (timeLeft < -3000 || anyKey || doorOpen) {
+				changeState(S_IDLE);
+			}
+			
+			goto skipCooking; // poner varios niveles de "if" no me sienta bien.
+			// podria engrupar lo siguiente en un cookStep() otra vez, peeeeerooooo...
+		}
 		
 		if (doorOpen) {
 			if (!doorOpenPrev) {
 				// mostrar advertencia al usuario antes de que las microondas lo destruyan
 				noTone(PIN_PIEZO);
 				digitalWrite(PIN_MOTOR, 0);
-				
-				lcd.setCursor(0,1);
-				lcd.print("Cierre la puerta");
+				updateDisplayPart |= DP_BOTTOMROW;
 			}
-		}
-		
-		if (!doorOpen && doorOpenPrev) {
-			lcd.setCursor(0,1);
-			lcd.print("                ");
-		}
-		
-		if (curSegment != C_DONE && !doorOpen) {
-			int secsBefore = timeLeft / 1000;
-			timeLeft -= delta;
-			ppln("delta ", delta, "ms => tl:", timeLeft, "ms)");
-			int secsNow = timeLeft / 1000;
-			if (secsBefore != secsNow) shouldUpdateDisplay = true;
 			
-			if (timeLeft <= 0 && curSegment != C_DONE) {
-				pp("cambio de segmento: ");
-				shouldUpdateDisplay = true;
+		} else { // puerta cerrada
+			if (doorOpenPrev) updateDisplayPart |= DP_BOTTOMROW;
 			
-				// cambia de segmento si es apropiado hacerlo
-				do {
-					if (curSegment == C_HOT) {
-						curSegment = C_COLD;
-						pp("C_COLD,");
-					} else if (curSegment == C_COLD) {
-						if (repsLeft > 0) {
-							curSegment = C_HOT;
-							pp("C_HOT,");
-							repsLeft--;
-						} else {
-							pp("!!! C_DONE !!!");
-							curSegment = C_DONE;
+			if (curSegment != C_DONE) {
+				int secsBefore = timeLeft / 1000;
+				timeLeft -= delta;
+				//ppln("delta ", delta, "ms => tl:", timeLeft, "ms)"); // SPAM
+				int secsNow = timeLeft / 1000;
+				if (secsBefore != secsNow) updateDisplayPart |= DP_TIME;
+				
+				if (timeLeft <= 0 && curSegment != C_DONE) {
+					//pp("cambio de segmento: ");
+					updateDisplayPart |= DP_TOPROW_DYNAMIC; // cambia temp, tiempo y reps
+				
+					// cambia de segmento si es apropiado hacerlo
+					do {
+						if (curSegment == C_HOT) {
+							curSegment = C_COLD;
+							//pp("C_COLD,");
+						} else if (curSegment == C_COLD) {
+							if (repsLeft > 0) {
+								curSegment = C_HOT;
+								//pp("C_HOT,");
+								repsLeft--;
+							} else {
+								//pp("!!! C_DONE !!!");
+								curSegment = C_DONE;
+								timeLeft = 1000; // caso excepcional
+							}
 						}
-					}
+						
+						if (curSegment != C_DONE) timeLeft += cookTimes[chosenProgram][curSegment] * 1000;
+					} while (timeLeft <= 0 && curSegment != C_DONE);
+					// repetimos el cambio de fase hasta que haya tiempo para cocinar
+					// o si ya terminamos el programa.
+					// en consecuencia, esto salta sobre fases de 0 segundos
+					// y hace que un programa {0, 0, 999} termine en un instante.
 					
-					if (curSegment != C_DONE) timeLeft += cookTimes[chosenProgram][curSegment] * 1000;
-				} while (timeLeft <= 0 && curSegment != C_DONE);
-				// repetimos el cambio de fase hasta que haya tiempo para cocinar
-				// o si ya terminamos el programa.
-				// en consecuencia, esto salta sobre fases de 0 segundos
-				// y hace que un programa {0, 0, 999} termine en un instante.
+					//ppln(" ntl:", timeLeft);
+				}
 				
-				ppln(" | nuevo timeLeft = ", timeLeft);
-			}
-			
-			switch (curSegment) {
-				case C_HOT :   tone(PIN_PIEZO,  70); digitalWrite(PIN_MOTOR, 1); break;
-				case C_COLD:   tone(PIN_PIEZO,  20); digitalWrite(PIN_MOTOR, 0); break;
-				case C_DONE: noTone(PIN_PIEZO)     ; digitalWrite(PIN_MOTOR, 0); break;
+				switch (curSegment) {
+					case C_HOT :   tone(PIN_PIEZO,  70); digitalWrite(PIN_MOTOR, 1); break;
+					case C_COLD:   tone(PIN_PIEZO,  20); digitalWrite(PIN_MOTOR, 0); break;
+					case C_DONE: noTone(PIN_PIEZO)     ; digitalWrite(PIN_MOTOR, 0); break;
+				}
 			}
 		}
 		
-		if (shouldUpdateDisplay) updateCookingLCD();
-		//delay(800); // test
+		skipCooking:
+		
+		if (updateDisplayPart) updateCookingLCD();
+		
 	}
 	
 	if (changedState) changedState--;
