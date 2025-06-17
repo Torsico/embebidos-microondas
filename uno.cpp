@@ -76,7 +76,12 @@ byte chardef_temphigh[] = {
 };
 enum customChars : byte {CHR_LOOP, CHR_CLOCK, CHR_TEMPLOW, CHR_TEMPHIGH};
 
-const int clockX = 0, repsX = 0; // ubicacion de iconos
+const int // ubicacion de iconos
+	tempX  = 0,
+	clockX = tempX+2,
+	repsX  = clockX+8; // 10
+//# #99m59s #9
+//0 2       10
 
 // ----- Variables Microondas -----
 enum cookTimesEnum { CT_FAST, CT_UNFREEZE, CT_REHEAT, CT_USER };
@@ -97,6 +102,8 @@ long timeLeft = 0; // tiempo restante para este segmento de coccion
 long curSegment = C_HOT;
 int repsLeft = 0; // repeticiones restantes para la coccion
 
+//long updateLast = 0; // cuando se actualizo por ultima vez el LCD?
+
 bool doorOpen = false; // esta la puerta abierta?
 
 enum stateEnum {
@@ -105,6 +112,8 @@ enum stateEnum {
 };
 int curState = S_IDLE;
 int changedState = 1; // 2: _RECIEN_ cambiamos (para el x-- al final del loop), 1: cambiamos, 0: seguimos
+
+char lcdTimeText[8];
 
 // ----- Utilidad Microondas -----
 bool isNum(char ch) {
@@ -132,6 +141,17 @@ long getProjectedTime() {
 	return total;
 }
 
+void updateLCDWithTime() {
+	//for (int i = 0; i < 8; i++) {lcdTimeText[i] = '\0';}
+	lcd.setCursor(clockX+1, 0);
+	
+	//snprintf(lcdTimeText, 8, "%d:%d");
+	int charsWritten = snprintf(lcdTimeText, 7, "%d%n", timeLeft, charsWritten);
+	charsWritten = min(charsWritten, 7);
+	
+	lcd.print(lcdTimeText);
+	for (int i = charsWritten; i < 7; i++) {lcd.print("?");}
+}
 bool cookAdvance() {
 	pp("cookAdvance()");
 	// devuelve bool: "ya termino la coccion?"
@@ -161,6 +181,8 @@ void cookStep(long delta) {
 		// este segmento de cocina termino
 		cookAdvance();
 	}
+	
+	updateLCDWithTime();
 }
 
 void changeState(int to) {
@@ -219,20 +241,26 @@ void loop() {
 	
 	else if (curState == S_COOKING) {
 		if (changedState) {
-			lcd.clear();
-			lcd.print("S_COOKING");
-			
 			timeLeft = cookTimes[chosenProgram][C_HOT] * 1000;
 			repsLeft = cookTimes[chosenProgram][C_REPS] - 1;
 			curSegment = C_HOT;
 			
-			lcd.setCursor(0,1);
-			lcd.print(getProjectedTime());
+			// dibujar el display como queremos
+			lcd.clear();
+			
+			lcd.setCursor(tempX, 0);
+			lcd.write(CHR_TEMPHIGH);
+			lcd.setCursor(clockX, 0);
+			lcd.write(CHR_CLOCK);
+			lcd.setCursor(repsX, 0);
+			lcd.write(CHR_LOOP);
+			
+			updateLCDWithTime();
+			
+			//lcd.print(getProjectedTime());
 		}
 		
 		cookStep(delta);
-		lcd.clear();
-		lcd.print(timeLeft);
 		delay(800);
 		
 		if (anyKey) {
