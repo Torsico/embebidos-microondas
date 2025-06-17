@@ -298,6 +298,10 @@ void loop() {
 	doorOpenPrev = doorOpen;
 	doorOpen = (analogRead(A0) > 512);
 	
+	// viendo que la luz solo funciona en un estado y en un caso determinado,
+	// es mas compacto manejarlo afuera de estos:
+	digitalWrite(PIN_LIGHT, doorOpen || curState == S_COOKING && curSegment != C_DONE ? 1 : 0);
+	
 	char key = kp.getKey();
 	bool anyKey = (key != NO_KEY);
 	bool numKey = (key >= 0x30 && key <= 0x39);
