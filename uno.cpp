@@ -133,6 +133,7 @@ int chosenProgram = 0; // el programa elegido
 long timeLeft = 0; // tiempo restante para este segmento de coccion
 long curSegment = C_HOT;
 int repsLeft = 0; // repeticiones restantes para la coccion
+bool debugPleaseGoFaster = false; // :(
 
 int configPhase = 0; // en que fase de la configuracion estamos?
 bool configAdvance = false; // pasamos a la siguiente fase?
@@ -186,7 +187,7 @@ long getProjectedTime() {
 	);
 	long total = totalFutureReps + totalThisRep;
 	
-	ppln("pjTime:",total, " <= ([",prog[C_HOT]*1000, "h + ", prog[C_COLD]*1000, "c]*", repsLeft, ") + (",totalThisRep,")");
+	ppln("pjTime:",total, " <= ([",prog[C_HOT]*1000l, "h + ", prog[C_COLD]*1000l, "c]*", repsLeft, ") + (",totalThisRep,")");
 	ppln("      :",totalFutureReps," + ",totalThisRep);
 	
 	return total;
@@ -228,8 +229,8 @@ void updateCookingLCD(int what = 0) {
 		
 		int timeLeftInSecs = curSegment == C_DONE ? 0 : (
 			verboseTime ?
-				timeLeft / 1000 : // mostrar TODO
-				getProjectedTime() / 1000 // solo mostrar tiempo restante
+				timeLeft / 1000l : // mostrar TODO
+				getProjectedTime() / 1000l // solo mostrar tiempo restante
 		);
 		
 		int secs = timeLeftInSecs % 60;
@@ -494,7 +495,7 @@ void loop() {
 	}
 	else if (curState == S_COOKING) {
 		if (changedState) {
-			timeLeft = cookTimes[chosenProgram][C_HOT] * 1000;
+			timeLeft = cookTimes[chosenProgram][C_HOT] * 1000l;
 			repsLeft = cookTimes[chosenProgram][C_REPS];
 			curSegment = C_HOT;
 			
@@ -524,11 +525,16 @@ void loop() {
 				verboseTime = !verboseTime;
 				updateDisplayPart |= DP_TOPROW; // limpiar los iconos tambien
 			}
+			if (key == 'A') {
+				debugPleaseGoFaster = !debugPleaseGoFaster; // EEEEEEEEEEEEEEEEEEEe
+				ppln("nyoom? ", (int)debugPleaseGoFaster);
+			}
 		}
 		
 		//ppln("# COCINA step tl:",timeLeft); // SPAM
 		// el tiempo pasa
 		if (curSegment == C_DONE) {
+			debugPleaseGoFaster = false;
 			long tlPrev = timeLeft;
 			timeLeft -= delta;
 			
@@ -556,10 +562,11 @@ void loop() {
 			if (doorOpenPrev) updateDisplayPart |= DP_BOTTOMROW;
 			
 			if (curSegment != C_DONE) {
-				int secsBefore = timeLeft / 1000;
+				int secsBefore = timeLeft / 1000l;
 				timeLeft -= delta;
+				if (debugPleaseGoFaster) timeLeft -= delta * 55l;
 				//ppln("delta ", delta, "ms => tl:", timeLeft, "ms)"); // SPAM
-				int secsNow = timeLeft / 1000;
+				int secsNow = timeLeft / 1000l;
 				if (secsBefore != secsNow) updateDisplayPart |= DP_TIME;
 				
 				if (timeLeft <= 0 && curSegment != C_DONE) {
@@ -584,7 +591,7 @@ void loop() {
 							}
 						}
 						
-						if (curSegment != C_DONE) timeLeft += cookTimes[chosenProgram][curSegment] * 1000;
+						if (curSegment != C_DONE) timeLeft += cookTimes[chosenProgram][curSegment] * 1000l;
 					} while (timeLeft <= 0 && curSegment != C_DONE);
 					// repetimos el cambio de fase hasta que haya tiempo para cocinar
 					// o si ya terminamos el programa.
