@@ -17,15 +17,30 @@ const byte lcdRows = 2, lcdCols = 16;
 LiquidCrystal_I2C lcd(0x20, lcdCols, lcdRows);
 
 // ----- debug -----
-#define DEBUGPRINT true
+#define DEBUGPRINT false
 #if DEBUGPRINT==true
+// truquitos print
+/* prints encadenados para que sea mas facil imprimir texto
+ la diferncia entre
+Serial.print(1);
+Serial.print(2);
+Serial.print(3);
+Serial.print(4);
+Serial.print(5);
+ y
+ppln(1, 2, 3, 4, 5);
+*/
 template<typename... pargs>
 void pp(pargs... args) {
-    (Serial.print(args), ...); Serial.println();
-} // truquito print
-#else
+    (Serial.print(args), ...);
+}
 template<typename... pargs>
-void pp(pargs... args) {} // nada
+void ppln(pargs... args) {
+    (Serial.print(args), ...); Serial.println();
+}
+#else
+template<typename... pargs> void pp(pargs... args) {}
+template<typename... pargs> void ppln(pargs... args) {}
 #endif
 
 // ----- Algunas constantes -----
@@ -113,7 +128,7 @@ enum stateEnum {
 int curState = S_IDLE;
 int changedState = 1; // 2: _RECIEN_ cambiamos (para el x-- al final del loop), 1: cambiamos, 0: seguimos
 
-char lcdTimeText[8];
+char lcdBuffer[8];
 
 // ----- Utilidad Microondas -----
 bool isNum(char ch) {
@@ -141,38 +156,30 @@ long getProjectedTime() {
 	return total;
 }
 
-
-bool cookAdvance() {
-	pp("cookAdvance()");
-	// devuelve bool: "ya termino la coccion?"
-	if (curSegment == C_HOT) {
-		curSegment = C_COLD;
-		pp("cookAdvance: C_COLD");
-	} else {
-		if (repsLeft <= 0) {
-			pp("cookAdvance: C_DONE!");
-			curSegment = C_DONE;
-			return true;
-		}
-		curSegment = C_HOT;
-		pp("cookAdvance: C_HOT, rep--");
-		repsLeft--;
-	}
-	timeLeft += cookTimes[chosenProgram][curSegment] * 1000;
-	pp("cookAdvance: timeLeft = ", timeLeft);
-	return false;
-}
-
 void updateCookingLCD() {
-	//for (int i = 0; i < 8; i++) {lcdTimeText[i] = '\0';}
+	int charsWritten;
+	// tiempo restante
 	lcd.setCursor(clockX+1, 0);
+	int timeLeftInSecs = timeLeft / 1000;
+	int secs = timeLeftInSecs % 60;
+	int mins = timeLeftInSecs / 60;
+	charsWritten = snprintf(lcdBuffer, 7, "%02d:%02d", mins, secs);
+	lcd.print(lcdBuffer);
+	for (int i = charsWritten; i < 7; i++) lcd.print(" ");
 	
-	//snprintf(lcdTimeText, 8, "%d:%d");
-	int charsWritten = snprintf(lcdTimeText, 7, "%d%n", timeLeft, charsWritten);
-	charsWritten = min(charsWritten, 7);
+	// reps
+	lcd.setCursor(repsX+1, 0);
+	charsWritten = snprintf(lcdBuffer, 2, "%d", repsLeft);
+	lcd.print(lcdBuffer);
+	for (int i = charsWritten; i < 2; i++) lcd.print(" ");
 	
-	lcd.print(lcdTimeText);
-	for (int i = charsWritten; i < 7; i++) {lcd.print("?");}
+	// segmento - temperatura, fase, como se llame xd
+	lcd.setCursor(tempX, 0);
+	switch (curSegment) {
+		case C_HOT : lcd.write(CHR_TEMPHIGH); break;
+		case C_COLD: lcd.write(CHR_TEMPLOW ); break;
+		case C_DONE: lcd.write('!'); break; // TODO
+	}
 }
 
 void changeState(int to) {
@@ -213,12 +220,14 @@ void loop() {
 	bool anyKey = (key != NO_KEY);
 	bool numKey = (key >= 0x30 && key <= 0x39);
 	
-	if (anyKey) pp("> keypad: ", key);
+	if (anyKey) ppln("> keypad: ", key);
 	
 	if (curState == S_IDLE) {
 		if (changedState) {
 			lcd.clear();
 			lcd.print("S_IDLE");
+			
+			noTone(PIN_PIEZO); digitalWrite(PIN_MOTOR, 0);
 		}
 		
 		if (anyKey) {
@@ -232,7 +241,7 @@ void loop() {
 	else if (curState == S_COOKING) {
 		if (changedState) {
 			timeLeft = cookTimes[chosenProgram][C_HOT] * 1000;
-			repsLeft = cookTimes[chosenProgram][C_REPS] - 1;
+			repsLeft = cookTimes[chosenProgram][C_REPS] - 1; // la primera instancia ES una de las repeticiones!
 			curSegment = C_HOT;
 			
 			// dibujar el display como queremos
@@ -244,10 +253,6 @@ void loop() {
 			lcd.write(CHR_CLOCK);
 			lcd.setCursor(repsX, 0);
 			lcd.write(CHR_LOOP);
-			
-			updateCookingLCD();
-			
-			//lcd.print(getProjectedTime());
 		}
 		
 		if (anyKey) {
@@ -256,17 +261,57 @@ void loop() {
 			}
 		}
 		
-		pp("cook step delta ", delta);
+		ppln("# COCINA step tl:",timeLeft);
+		
 		// el tiempo pasa
-		timeLeft -= delta;
-		if (timeLeft <= 0 && curSegment != C_DONE) {
-			pp("cookStep: negativo!!");
-			// este segmento de cocina termino
-			cookAdvance();
+		bool shouldUpdateDisplay = false;
+		
+		if (curSegment != C_DONE) {
+			int secsBefore = timeLeft / 1000;
+			timeLeft -= delta;
+			ppln("delta ", delta, "ms => tl:", timeLeft, "ms)");
+			int secsNow = timeLeft / 1000;
+			if (secsBefore != secsNow) shouldUpdateDisplay = true;
+			
+			if (timeLeft <= 0 && curSegment != C_DONE) {
+				pp("cambio de segmento: ");
+				shouldUpdateDisplay = true;
+			
+				// cambia de segmento si es apropiado hacerlo
+				do {
+					if (curSegment == C_HOT) {
+						curSegment = C_COLD;
+						pp("C_COLD,");
+					} else if (curSegment == C_COLD) {
+						if (repsLeft > 0) {
+							curSegment = C_HOT;
+							pp("C_HOT,");
+							repsLeft--;
+						} else {
+							pp("!!! C_DONE !!!");
+							curSegment = C_DONE;
+						}
+					}
+					
+					if (curSegment != C_DONE) timeLeft += cookTimes[chosenProgram][curSegment] * 1000;
+				} while (timeLeft <= 0 && curSegment != C_DONE);
+				// repetimos el cambio de fase hasta que haya tiempo para cocinar
+				// o si ya terminamos el programa.
+				// en consecuencia, esto salta sobre fases de 0 segundos
+				// y hace que un programa {0, 0, 999} termine en un instante.
+				
+				ppln(" | nuevo timeLeft = ", timeLeft);
+			}
 		}
 		
-		updateCookingLCD();
-		delay(800); // test
+		switch (curSegment) {
+			case C_HOT :   tone(PIN_PIEZO,  70); digitalWrite(PIN_MOTOR, 1); break;
+			case C_COLD:   tone(PIN_PIEZO,  20); digitalWrite(PIN_MOTOR, 0); break;
+			case C_DONE: noTone(PIN_PIEZO)     ; digitalWrite(PIN_MOTOR, 0); break;
+		}
+		
+		if (shouldUpdateDisplay) updateCookingLCD();
+		//delay(800); // test
 	}
 	
 	if (changedState) changedState--;
