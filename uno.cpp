@@ -109,12 +109,19 @@ int cookTimes[4][3] = {
 	// testeo por defecto
 	{ 3,  3, 3}  // CT_USER (personalizado)
 };
-char cookLabels[4][18] = {
+char cookLabels[4][17] = {
 	" Coccion rapida ",
 	"   Descongelar  ",
 	"   Recalentar   ",
 	"    Usuario     "
 };
+char configLabels[3][17] = {
+	"INGRESE *calien.",
+	"INGRESE *apagado",
+	"INGRESE *repetir"
+};
+
+int configPhase = 0; // en que fase de la configuracion estamos?
 
 int chosenProgram = 0; // el programa elegido
 
@@ -123,6 +130,8 @@ long timeTotal = 0; // tiempo total desde que se inicio el programa
 long timeLeft = 0; // tiempo restante para este segmento de coccion
 long curSegment = C_HOT;
 int repsLeft = 0; // repeticiones restantes para la coccion
+
+char lcdBuffer[8];
 
 bool verboseTime = false; // false: solo muestra el tiempo total restante. true: muestra mas info
 int updateDisplayPart = 0;
@@ -156,8 +165,6 @@ enum stateEnum {
 };
 int curState = S_IDLE;
 int changedState = 1; // 2: _RECIEN_ cambiamos (para el x-- al final del loop), 1: cambiamos, 0: seguimos
-
-char lcdBuffer[8];
 
 // ----- Utilidad Microondas -----
 bool isNum(char ch) {
@@ -281,6 +288,10 @@ void setup() {
 	lcd.createChar(3, chardef_temphigh);
 	lcd.backlight();
 	
+	// ponemos los simbolos en los textos :)
+	configLabels[1][8] = configLabels[2][8] = (char)CHR_CLOCK;
+	configLabels[3][8] = (char)CHR_LOOP;
+	
 	pinMode(PIN_MOTOR, OUTPUT);
 	pinMode(PIN_LIGHT, OUTPUT);
 	pinMode(PIN_PIEZO, OUTPUT); noTone(PIN_PIEZO);
@@ -343,12 +354,25 @@ void loop() {
 		- tiempo de apagado en segundos
 		- repeticiones
 		
+		//1234567890123456|
+		//INGRESE *calente
+		//INGRESE *apagado
+		//INGRESE *repetir
+		// *00:00_
+		
+		//OK?  Apriete '#'
+		//*00:00 *00:00 *x
+		
+		
 		talvez mostrar un "LISTO :)" y volver a S_IDLE
 		*/
 		
 		if (changedState) {
 			lcd.clear();
-			lcd.print("S_CONFIG");
+			lcd.print(configLabels[1]);
+			lcd.setCursor(1,1);
+			lcd.print((char)CHR_CLOCK);
+			lcd.print("00:00");
 			lcd.cursor(); // TODO solo mostrarlo cuando se pide input
 		}
 		
