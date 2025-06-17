@@ -109,6 +109,13 @@ int cookTimes[4][3] = {
 	// testeo por defecto
 	{ 3,  3, 3}  // CT_USER (personalizado)
 };
+char cookLabels[4][18] = {
+	" Coccion rapida ",
+	"   Descongelar  ",
+	"   Recalentar   ",
+	"    Usuario     "
+};
+
 int chosenProgram = 0; // el programa elegido
 
 long timeTotal = 0; // tiempo total desde que se inicio el programa
@@ -186,6 +193,11 @@ void updateCookingLCD() {
 		case C_HOT : lcd.write(CHR_TEMPHIGH); break;
 		case C_COLD: lcd.write(CHR_TEMPLOW ); break;
 		case C_DONE: lcd.write('!'); break; // TODO
+	}
+	
+	if (curSegment == C_DONE) {
+		lcd.setCursor(0,1);
+		lcd.print("Coccion completa");
 	}
 }
 
@@ -315,6 +327,10 @@ void loop() {
 			lcd.write(CHR_CLOCK);
 			lcd.setCursor(repsX, 0);
 			lcd.write(CHR_LOOP);
+			
+			lcd.setCursor(0, 1);
+			Serial.println(chosenProgram);
+			lcd.print(cookLabels[chosenProgram]);
 			
 			// TODO: mostrar programa actual
 		}
