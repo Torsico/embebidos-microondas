@@ -243,7 +243,7 @@ void updateCookingLCD(int what = 0) {
 	// reps
 	if (updateDisplayPart & DP_REPS && verboseTime) {
 		lcd.setCursor(repsX+1, 0);
-		charsWritten = snprintf(txtBuffer, 2, "%d", repsLeft);
+		charsWritten = snprintf(txtBuffer, 3, "%d", repsLeft);
 		lcd.print(txtBuffer);
 		for (int i = charsWritten; i < 2; i++) lcd.print(" ");
 	}
