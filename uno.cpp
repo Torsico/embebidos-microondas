@@ -495,7 +495,7 @@ void loop() {
 	else if (curState == S_COOKING) {
 		if (changedState) {
 			timeLeft = cookTimes[chosenProgram][C_HOT] * 1000;
-			repsLeft = cookTimes[chosenProgram][C_REPS] - 1; // la primera instancia ES una de las repeticiones!
+			repsLeft = cookTimes[chosenProgram][C_REPS];
 			curSegment = C_HOT;
 			
 			//Serial.println(chosenProgram);
