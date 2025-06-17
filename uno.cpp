@@ -16,6 +16,18 @@ Keypad kp = Keypad(makeKeymap(kpLabels), kpPinsRow, kpPinsCol, 4, 4);
 const byte lcdRows = 2, lcdCols = 16;
 LiquidCrystal_I2C lcd(0x20, lcdCols, lcdRows);
 
+// ----- debug -----
+#define DEBUGPRINT true
+#if DEBUGPRINT==true
+template<typename... pargs>
+void pp(pargs... args) {
+    (Serial.print(args), ...); Serial.println();
+} // truquito print
+#else
+template<typename... pargs>
+void pp(pargs... args) {} // nada
+#endif
+
 // ----- Algunas constantes -----
 const int PIN_PIEZO = 3;
 const int PIN_MOTOR = 4;
@@ -47,14 +59,14 @@ const int clockX = 0, repsX = 0; // ubicacion de iconos
 
 // ----- Variables Microondas -----
 enum cookTimesEnum { CT_FAST, CT_UNFREEZE, CT_REHEAT, CT_USER };
-enum cookSegment { C_HOT, C_COLD, C_REPS };
+enum cookSegment { C_HOT, C_COLD, C_REPS, C_DONE = 2 };
 int cookTimes[4][3] = {
 	// tiempo calentado en segundos, tiempo apagado en segundos, repeticiones
 	{30,  0, 1}, // CT_FAST (coccion rapida)
 	{20, 10, 5}, // CT_UNFREEZE (descongelar)
 	{15,  3, 3}, // CT_REHEAT (recalentar)
-	// le puse CT_FAST como default
-	{30,  0, 1}  // CT_USER (personalizado)
+	// testeo por defecto
+	{ 3,  3, 3}  // CT_USER (personalizado)
 };
 int chosenProgram = 0; // el programa elegido
 
@@ -67,7 +79,7 @@ int repsLeft = 0; // repeticiones restantes para la coccion
 bool doorOpen = false; // esta la puerta abierta?
 
 enum stateEnum {
-	S_IDLE, // esperando que el usuario haga algo
+	S_IDLE,   // esperando que el usuario haga algo
 	S_COOKING // cocinando (i.e. pasando el tiempo)
 };
 int curState = S_IDLE;
@@ -97,6 +109,37 @@ long getProjectedTime() {
 	long total = totalFutureReps + totalThisRep;
 	
 	return total;
+}
+
+bool cookAdvance() {
+	pp("cookAdvance()");
+	// devuelve bool: "ya termino la coccion?"
+	if (curSegment == C_HOT) {
+		curSegment = C_COLD;
+		pp("cookAdvance: C_COLD");
+	} else {
+		if (repsLeft <= 0) {
+			pp("cookAdvance: C_DONE!");
+			curSegment = C_DONE;
+			return true;
+		}
+		curSegment = C_HOT;
+		pp("cookAdvance: C_HOT, rep--");
+		repsLeft--;
+	}
+	timeLeft += cookTimes[chosenProgram][curSegment] * 1000;
+	pp("cookAdvance: timeLeft = ", timeLeft);
+	return false;
+}
+void cookStep(long delta) {
+	pp("cookStep(", delta, ")");
+	// hace pasar el tiempo
+	timeLeft -= delta;
+	if (timeLeft <= 0 && curSegment != C_DONE) {
+		pp("cookStep: negativo!!");
+		// este segmento de cocina termino
+		cookAdvance();
+	}
 }
 
 void changeState(int to) {
@@ -135,6 +178,8 @@ void loop() {
 	bool anyKey = (key != NO_KEY);
 	bool numKey = (key >= 0x30 && key <= 0x39);
 	
+	if (anyKey) pp("> keypad: ", key);
+	
 	if (curState == S_IDLE) {
 		if (changedState) {
 			lcd.clear();
@@ -142,9 +187,8 @@ void loop() {
 		}
 		
 		if (anyKey) {
-			Serial.println("key");
-			if (key == 'A') {
-				chosenProgram = CT_FAST;
+			if (key >= 'A' && key <= 'D') {
+				chosenProgram = CT_FAST + (key - 'A');
 				changeState(S_COOKING);
 			}
 		}
@@ -163,8 +207,12 @@ void loop() {
 			lcd.print(getProjectedTime());
 		}
 		
+		cookStep(delta);
+		lcd.clear();
+		lcd.print(timeLeft);
+		delay(800);
+		
 		if (anyKey) {
-			Serial.println("key");
 			if (key == '*') {
 				changeState(S_IDLE);
 			}
