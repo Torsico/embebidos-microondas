@@ -123,6 +123,7 @@ bool doorOpen = false; // esta la puerta abierta?
 
 enum stateEnum {
 	S_IDLE,   // esperando que el usuario haga algo
+	S_CONFIG, // configurando CT_USER
 	S_COOKING // cocinando (i.e. pasando el tiempo)
 };
 int curState = S_IDLE;
@@ -157,6 +158,10 @@ long getProjectedTime() {
 }
 
 void updateCookingLCD() {
+	// TODO: esto no cumple la consigna del TP
+	// >> mostrar TIEMPO RESTANTE TOTAL <<
+	// dejar lo extra como un display debug o algo asi
+	
 	int charsWritten;
 	// tiempo restante
 	lcd.setCursor(clockX+1, 0);
@@ -222,18 +227,56 @@ void loop() {
 	
 	if (anyKey) ppln("> keypad: ", key);
 	
+	// S_IDLE actua como un hub para los distintos estados.
+	// TODOS los estados pasan por S_IDLE en algun momento, nunca de uno al otro.
+	// por ende, usar S_IDLE como limpieza de pines y variables.
+	
 	if (curState == S_IDLE) {
 		if (changedState) {
 			lcd.clear();
-			lcd.print("S_IDLE");
+			lcd.noCursor();
+			lcd.print("Esperando...");
 			
 			noTone(PIN_PIEZO); digitalWrite(PIN_MOTOR, 0);
 		}
+		
+		// TODO: numeros del 1 al 9 deben iniciar CT_FAST
+		// con el numero correspondiendo a repsLeft
+		// TODO: '#' entra al modo de configuracion de CT_USER
+		
+		// TODO: si la puerta esta abierta, no iniciar programa y mostrar advertencia
 		
 		if (anyKey) {
 			if (key >= 'A' && key <= 'D') {
 				chosenProgram = CT_FAST + (key - 'A');
 				changeState(S_COOKING);
+			}
+			if (key == '#') {
+				changeState(S_CONFIG);
+			}
+		}
+	}
+	
+	else if (curState == S_CONFIG) {
+		/* TODO todo xd
+		hacer una secuencia de menu donde se pide, en orden,
+		- tiempo de calentamiento en segundos
+		- tiempo de apagado en segundos
+		- repeticiones
+		
+		talvez mostrar un "LISTO :)" y volver a S_IDLE
+		*/
+		
+		if (changedState) {
+			lcd.clear();
+			lcd.print("S_CONFIG");
+			lcd.cursor(); // TODO solo mostrarlo cuando se pide input
+		}
+		
+		if (anyKey) {
+			if (key == '*') {
+				// #cancela2
+				changeState(S_IDLE);
 			}
 		}
 	}
@@ -253,11 +296,32 @@ void loop() {
 			lcd.write(CHR_CLOCK);
 			lcd.setCursor(repsX, 0);
 			lcd.write(CHR_LOOP);
+			
+			// TODO: mostrar programa actual
 		}
+		
+		/* TODO: la puertaaaaaaaaaa
+		si esta abierto, pausar (buzzer y motor sssshhhh, tiempo debe dejar de correr) y mostrar advertencia
+		una vez cerrado, reanudar
+		*/
 		
 		if (anyKey) {
 			if (key == '*') {
 				changeState(S_IDLE);
+				// "servira para detener el programa llevando a 0 los segundos restantes"
+				// el boton cambia de estado a S_IDLE, *tecnicamente* terminando el programa.
+				// cuenta?
+				
+				/*
+				osea digamos que
+				
+				repsLeft = 0;
+				timeLeft = 0;
+				if (!timeLeft) changeState(S_IDLE);
+				
+				ahora el tiempo haria consecuente el cambio de estado
+				jeje
+				*/
 			}
 		}
 		
