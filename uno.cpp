@@ -54,6 +54,27 @@ byte chardef_clock[] = {
   B10001,
   B01110
 };
+byte chardef_templow[] = {
+  B01110,
+  B01010,
+  B01010,
+  B01010,
+  B10001,
+  B11111,
+  B11111,
+  B01110
+};
+byte chardef_temphigh[] = {
+  B01110,
+  B01010,
+  B01110,
+  B01110,
+  B11111,
+  B11111,
+  B11111,
+  B01110
+};
+enum customChars : byte {CHR_LOOP, CHR_CLOCK, CHR_TEMPLOW, CHR_TEMPHIGH};
 
 const int clockX = 0, repsX = 0; // ubicacion de iconos
 
@@ -156,6 +177,8 @@ void setup() {
 	lcd.begin(lcdCols, lcdRows, LCD_5x8DOTS);
 	lcd.createChar(0, chardef_loop);
 	lcd.createChar(1, chardef_clock);
+	lcd.createChar(2, chardef_templow);
+	lcd.createChar(3, chardef_temphigh);
 	lcd.backlight();
 	
 	pinMode(PIN_MOTOR, OUTPUT);
