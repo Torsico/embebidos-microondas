@@ -247,8 +247,6 @@ void loop() {
 		// con el numero correspondiendo a repsLeft
 		// TODO: '#' entra al modo de configuracion de CT_USER
 		
-		// TODO: si la puerta esta abierta, no iniciar programa y mostrar advertencia
-		
 		if (anyKey) {
 			if (key >= 'A' && key <= 'D') {
 				chosenProgram = CT_FAST + (key - 'A');
@@ -320,11 +318,6 @@ void loop() {
 			
 			// TODO: mostrar programa actual
 		}
-		
-		/* TODO: la puertaaaaaaaaaa
-		si esta abierto, pausar (buzzer y motor sssshhhh, tiempo debe dejar de correr) y mostrar advertencia
-		una vez cerrado, reanudar
-		*/
 		
 		if (anyKey) {
 			if (key == '*') {
