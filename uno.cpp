@@ -254,9 +254,11 @@ void updateCookingLCD(int what = 0) {
 	if (updateDisplayPart & DP_TEMP && verboseTime) {
 		lcd.setCursor(tempX, 0);
 		switch (curSegment) {
-			case C_HOT : lcd.write(CHR_TEMPHIGH); break;
-			case C_COLD: lcd.write(CHR_TEMPLOW ); break;
-			case C_DONE: lcd.write('!'); break; // TODO
+			case C_HOT :
+				lcd.write(CHR_TEMPHIGH); break;
+			case C_COLD:
+			case C_DONE:
+				lcd.write(CHR_TEMPLOW ); break;
 		}
 	}
 	
@@ -334,10 +336,6 @@ void loop() {
 			
 			noTone(PIN_PIEZO); digitalWrite(PIN_MOTOR, 0);
 		}
-		
-		// TODO: numeros del 1 al 9 deben iniciar CT_FAST
-		// con el numero correspondiendo a repsLeft
-		// TODO: '#' entra al modo de configuracion de CT_USER
 		
 		if (anyKey) {
 			if (key >= 'A' && key <= 'D') {
